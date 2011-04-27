@@ -1,0 +1,548 @@
+package Locale::MO::File;
+
+use Moose;
+use MooseX::StrictConstructor;
+use MooseX::FollowPBP;
+use Carp qw(confess);
+use English qw(-no_match_vars $INPUT_RECORD_SEPARATOR);
+use Encode qw(encode decode);
+require IO::File;
+use Params::Validate qw(validate_with SCALAR ARRAYREF);
+use Readonly;
+
+our $VERSION = '0.01';
+
+Readonly my $INTEGER_LENGTH    => length pack 'N', 0;
+Readonly my $REVISION_OFFSET   => $INTEGER_LENGTH;
+Readonly my $MAPS_OFFSET       => $INTEGER_LENGTH * 7;
+Readonly my $MAGIC_NUMBER      => 0x95_04_12_de;
+Readonly my $CONTEXT_SEPARATOR => chr 4; # EOT
+Readonly my $PLURAL_SEPARATOR  => chr 0; # NUL
+
+has filename => (
+    is      => 'rw',
+    isa     => 'Str',
+    clearer => 'clear_filename',
+);
+has file_handle => (
+    is      => 'rw',
+    isa     => 'FileHandle',
+    clearer => 'clear_file_handle',
+);
+has encoding => (
+    is      => 'rw',
+    isa     => 'Str',
+    clearer => 'clear_encoding',
+);
+has newline => (
+    is      => 'rw',
+    isa     => 'Str',
+    clearer => 'clear_newline',
+);
+has is_big_endian => (
+    is      => 'rw',
+    isa     => 'Bool',
+    reader  => 'is_big_endian',
+    writer  => 'set_is_big_endian',
+    clearer => 'clear_is_big_endian',
+);
+has messages => (
+    is      => 'rw',
+    isa     => 'ArrayRef',
+    default => sub { return [] },
+    lazy    => 1,
+);
+
+sub _encode_and_replace_newline {
+    my ($self, $string) = @_;
+
+    if ( $self->get_encoding() ) {
+        $string = encode($self->get_encoding(), $string);
+    }
+    if ( $self->get_newline() ) {
+        $string =~ s{\x0D? \x0A}{ $self->get_newline() }xmsge;
+    }
+
+    return $string;
+}
+
+sub _decode_and_replace_newline {
+    my ($self, $string) = @_;
+
+    if ( $self->get_encoding() ) {
+        $string = decode($self->get_encoding(), $string);
+    }
+    if ( $self->get_newline() ) {
+        $string =~ s{\x0D? \x0A}{ $self->get_newline() }xmsge;
+    }
+
+    return $string;
+}
+
+sub _pack_message {
+    my ($self, $message) = @_;
+
+    my ($msgid, $msgstr) = map {
+        ( exists $message->{$_} && defined $message->{$_} )
+        ? $message->{$_}
+        : q{};
+    } qw(msgid msgstr);
+
+    # original
+    $msgid = $self->_encode_and_replace_newline(
+        (
+            (
+                exists $message->{msgctxt}
+                && defined $message->{msgctxt}
+                && length $message->{msgctxt}
+            )
+            ? $message->{msgctxt} . $CONTEXT_SEPARATOR . $msgid
+            : $msgid
+        )
+        . (
+            (
+                exists $message->{msgid_plural}
+                && defined $message->{msgid_plural}
+                && length $message->{msgid_plural}
+            )
+            ? $PLURAL_SEPARATOR . $message->{msgid_plural}
+            : q{}
+        ),
+    );
+
+    # translation
+    $msgstr = $self->_encode_and_replace_newline(
+        (
+            length $msgstr
+            ? $msgstr
+            : join
+                $PLURAL_SEPARATOR,
+                map {
+                    defined $_ ? $_ : q{}
+                } @{ $message->{msgstr_plural} || [] }
+        ),
+    );
+
+    return {
+        msgid  => $msgid,
+        msgstr => $msgstr,
+    };
+}
+
+sub _unpack_message {
+    my ($self, $message) = @_;
+
+    my ($msgid, $msgstr) = map {
+        ( defined $_ && length $_ )
+        ? $self->_decode_and_replace_newline($_)
+        : q{};
+    } @{$message}{qw(msgid msgstr)};
+
+    # return value
+    my %message;
+
+    # split original
+    my @string = split $CONTEXT_SEPARATOR, $msgid;
+    if ( @string > 1 ) {
+        ( $message{msgctxt}, $msgid ) = @string;
+    }
+    my @plural = split $PLURAL_SEPARATOR, $msgid;
+    if ( @plural > 1 ) {
+        @message{qw(msgid msgid_plural)} = @plural;
+    }
+    else {
+        $message{msgid} = $msgid;
+    }
+
+    # split translation
+    @plural = split $PLURAL_SEPARATOR, $msgstr;
+    if ( @plural > 1 ) {
+        $message{msgstr_plural} = \@plural;
+    }
+    else {
+        $message{msgstr} = $plural[0];
+    }
+
+    return \%message;
+}
+
+before 'write_file' => sub {
+    my $self = shift;
+
+    my $index = 0;
+    for my $message ( @{ $self->get_messages() } ) {
+        validate_with(
+            params => (
+                ref $message eq 'HASH'
+                ? $message
+                : confess "messages[$index] is not a hash reference"
+            ),
+            spec => {
+                msgctxt       => {type => SCALAR, optional => 1},
+                msgid         => {type => SCALAR, optional => 1},
+                msgid_plural  => {type => SCALAR, optional => 1},
+                msgstr        => {type => SCALAR, optional => 1},
+                msgstr_plural => {
+                    type      => ARRAYREF,
+                    optional  => 1,
+                    callbacks => {
+                        'msgstr not set' => sub {
+                            return ! (
+                                exists $message->{msgstr_plural}
+                                && exists $message->{msgstr}
+                            );
+                        },
+                    },
+                },
+            },
+            called => "messages[$index]",
+        );
+        ++$index;
+    }
+
+    return $self;
+};
+
+sub write_file {
+    my $self = shift;
+
+    my $messages = [
+        sort {
+            $a->{msgid} cmp $b->{msgid};
+        }
+        map {
+            $self->_pack_message($_);
+        } @{ $self->get_messages() }
+    ];
+
+    my $number_of_strings = @{$messages};
+
+    # Set the byte order of the MO file creator
+    my $template = $self->is_big_endian() ? q{N} : q{V};
+
+    my $maps    = q{};
+    my $strings = q{};
+    my $current_offset
+        = $MAPS_OFFSET
+        # length of map
+        + $INTEGER_LENGTH * 4 * $number_of_strings; ## no critic (MagicNumbers)
+    for my $key (qw(msgid msgstr)) {
+        for my $message ( @{$messages} ) {
+            my $string = $message->{$key};
+            my $length = length $string;
+            my $map = pack $template x 2, $length, $current_offset;
+            $maps    .= $map;
+            $string  .= "\0";
+            $strings .= $string;
+            $current_offset += length $string;
+        }
+    }
+
+    my $offset_original
+        = $MAPS_OFFSET;
+    my $offset_translated
+        = $MAPS_OFFSET
+        + $INTEGER_LENGTH * 2 * $number_of_strings;
+    my $content
+        = (
+            pack $template x 7, ## no critic (MagicNumbers)
+            $MAGIC_NUMBER,
+            0, # revision
+            $number_of_strings,
+            $offset_original,
+            $offset_translated,
+            0, # hash size
+            0, # hash offset
+        )
+        . $maps
+        . $strings;
+
+    my $filename = $self->get_filename();
+    defined $filename
+        or confess 'Filename not set';
+    my $file_handle
+        = $self->get_file_handle()
+        || IO::File->new($filename, '> :raw')
+        || confess "Can not open mo file $filename";
+    $file_handle->print($content)
+        or confess "Can not write mo file $filename";
+    if ( ! $self->get_file_handle() ) {
+        $file_handle->close()
+            or confess "Can not close mo file $filename";
+    }
+
+    return $self;
+}
+
+sub read_file {
+    my $self = shift;
+
+    my $filename = $self->get_filename();
+    defined $filename
+        or confess 'filename not set';
+    my $file_handle
+        = $self->get_file_handle()
+        || IO::File->new($filename, '< :raw')
+        || confess "Can not open mo file $filename";
+    my $content = do {
+        local $INPUT_RECORD_SEPARATOR = ();
+        <$file_handle>;
+    };
+    if ( ! $self->get_file_handle() ) {
+        $file_handle->close();
+    }
+
+    # Find the byte order of the MO file creator
+    my $magic_number = substr $content, 0, $INTEGER_LENGTH;
+    my $template =
+        ( $magic_number eq pack 'V', $MAGIC_NUMBER )
+        # Little endian
+        ? q{V}
+        : ( $magic_number eq pack 'N', $MAGIC_NUMBER )
+        # Big endian
+        ? q{N}
+        # Wrong magic number. Not a valid MO file.
+        : confess "MO file expected: $filename";
+
+    my ($revision, $number_of_strings, $offset_original, $offset_translated)
+        = unpack
+            $template x 4, ## no critic (MagicNumbers)
+            substr
+                $content,
+                $REVISION_OFFSET,
+                $INTEGER_LENGTH * 4; ## no critic (MagicNumbers)
+    $revision > 0
+        and confess "Revision > 0 is unknown: $revision";
+
+    $self->set_messages(\my @messages);
+    for my $index (0 .. $number_of_strings - 1) {
+        my $key = 'msgid';
+        my $message;
+        for my $offset ($offset_original, $offset_translated) {
+            my ($string_length, $string_offset)
+                = unpack
+                    $template x 2,
+                    substr
+                        $content,
+                        $offset + $index * $INTEGER_LENGTH * 2,
+                        $INTEGER_LENGTH * 2;
+            $message->{$key}
+                = substr $content, $string_offset, $string_length;
+            $key = 'msgstr';
+        }
+        $messages[$index] = $self->_unpack_message($message);
+    }
+
+    return $self;
+}
+
+no Moose;
+__PACKAGE__->meta()->make_immutable();
+
+1;
+
+__END__
+
+=head1 NAME
+
+Locale::MO::File - Write/read gettext MO files
+
+$Id: File.pm 592 2011-04-27 10:52:36Z steffenw $
+
+$HeadURL: https://dbd-po.svn.sourceforge.net/svnroot/dbd-po/Locale-MO-File/trunk/lib/Locale/MO/File.pm $
+
+=head1 VERSION
+
+0.01
+
+=head1 SYNOPSIS
+
+    require Locale::MO::File;
+
+    my $mo = Locale::MO::File->new(
+        filename => $filename,
+        ...
+        messages => [
+            {
+                msgid  => 'original',
+                msgstr => 'translation',
+                ...
+            },
+            ...
+        ],
+    });
+    $mo->write_file();
+
+    $mo->read_file():
+    my $messages = $self->get_messages();
+
+=head1 DESCRIPTION
+
+The module allows to write or read gettext MO files.
+
+Data to write are expected as array reference of hash references.
+Read data are stored in an array reference too.
+
+Reading and writing is also available using an already open file handle.
+A given file handle will used but not closed.
+
+Set encoding, newline and byte order to be compatible.
+
+=head1 SUBROUTINES/METHODS
+
+=head2 method new
+
+This is the constructor method.
+All parameters are optional.
+
+    my $mo = Locale::MO::File->new(
+        filename      => $string,
+        file_handle   => $file_handle, # filename expected for error messages only
+        encoding      => $string,      # e.g. 'UTF-8', if not set: bytes
+        newline       => $string,      # e.g. $CRLF or "\n", if not set: no change
+        is_big_endian => $boolean,     # if not set: little endian
+        messages      => $arrayref,    # default []
+    );    
+
+=head2 methods to modify an existing object
+
+=head3 set_filename, get_filename, clear_filename
+
+Modification of parameter filename.
+
+    $mo->set_filename($string);
+    $string = $mo->get_filename();
+    $mo->clear_filename();
+
+=head3 set_file_handle, get_file_handle, clear_file_handle
+
+Modification of parameter file_handle.
+
+=head3 set_encoding, get_encoding, clear_encoding
+
+Modification of parameter encoding.
+
+=head3 set_newline, get_newline, clear_newline
+
+Modification of parameter newline.
+
+=head3 set_is_big_endian, is_big_endian, clear_is_big_endian
+
+Modification of parameter is_big_endian.
+Only needed to write files.
+
+=head3 method set_messages, get_messages
+
+Modification of parameter messages.
+
+    $mo->set_messages([
+        # header
+        {
+            msgid   => q{},
+            msgstr  => $header,
+        },
+        # typical
+        {
+            msgid   => $original,
+            msgstr  => $translation,
+        },
+        # context
+        {
+            msgctxt => $context,
+            msgid   => $original,
+            msgstr  => $translation,
+        },
+        # plural
+        {
+            msgid         => $original_singular,
+            msgid_plural  => $original_plural,
+            msgstr_plural => [ $tanslation_0, ..., $translation_n ],
+        },
+        # context + plural
+        {
+            msgctxt       => $context,
+            msgid         => $original_singular,
+            msgid_plural  => $original_plural,
+            msgstr_plural => [ $tanslation_0, ..., $translation_n ],
+        },
+    ]);
+
+=head2 write_file
+
+The content of the "messages" array reference is first sorted and then written.
+So the header is always on top. 
+The transferred "messages" array reference remains unchanged.
+
+    $mo->write_file();
+
+=head2 method read_file
+
+Big endian or little endian will be detected automaticly.
+The read data will be stored in attribute messages.
+
+    $mo = read_file();
+    my $messages = $mo->get_messages();
+
+
+=head1 EXAMPLE
+
+Inside of this distribution is a directory named example.
+Run the *.pl files.
+
+=head1 DIAGNOSTICS
+
+Full validation of messages array reference using Params::Validate.
+
+=head1 CONFIGURATION AND ENVIRONMENT
+
+none
+
+=head1 DEPENDENCIES
+
+Moose
+
+L<MooseX::StrictConstructor|MooseX::StrictConstructor>
+
+L<MooseX::FollowPBP|MooseX::FollowPBP>
+
+Carp
+
+English
+
+Encode
+
+L<IO::File|IO::File>
+
+L<Params::Validate|Params::Validate>
+
+Readonly
+
+=head1 INCOMPATIBILITIES
+
+not known
+
+=head1 BUGS AND LIMITATIONS
+
+Hashing table not written of this module version.
+So very slim MO files are the result.
+
+=head1 SEE ALSO
+
+L<http://www.gnu.org/software/hello/manual/gettext/MO-Files.html>
+
+=head1 AUTHOR
+
+Steffen Winkler
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright (c) 2011,
+Steffen Winkler
+C<< <steffenw at cpan.org> >>.
+All rights reserved.
+
+This module is free software;
+you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+=cut

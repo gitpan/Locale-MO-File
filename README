@@ -1,0 +1,45 @@
+Locale::MO::File version 0.01
+=============================
+
+Write or read gettext MO files.
+
+INSTALLATION
+
+To install this module, run the following commands:
+
+    perl Makefile.PL
+    make
+    make test
+    make install
+
+Alternatively, to install with Module::Build, you can use the following commands:
+
+    perl Build.PL
+    ./Build
+    ./Build test
+    ./Build install
+
+DEPENDENCIES
+
+This module requires these other modules and libraries:
+
+    Moose
+    MooseX::StrictConstructor
+    MooseX::FollowPBP
+    Carp
+    English
+    Encode
+    IO::File
+    Params::Validate
+    Readonly
+
+COPYRIGHT AND LICENCE
+
+Copyright (c) 2011,
+Steffen Winkler
+steffenw at cpan.org.
+All rights reserved.
+
+This module is free software;
+you can redistribute it and/or modify it
+under the same terms as Perl itself.
