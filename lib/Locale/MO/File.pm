@@ -1,42 +1,49 @@
-package Locale::MO::File;
+package Locale::MO::File; ## no critic (TidyCode)
 
 use Moose;
 use MooseX::StrictConstructor;
-use MooseX::FollowPBP;
-use Carp qw(confess);
-use English qw(-no_match_vars $INPUT_RECORD_SEPARATOR);
+use Const::Fast qw(const);
 use Encode qw(encode decode);
+use English qw(-no_match_vars $INPUT_RECORD_SEPARATOR);
 require IO::File;
+use namespace::autoclean;
 use Params::Validate qw(validate_with SCALAR ARRAYREF);
-use Readonly;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
-Readonly my $INTEGER_LENGTH    => length pack 'N', 0;
-Readonly my $REVISION_OFFSET   => $INTEGER_LENGTH;
-Readonly my $MAPS_OFFSET       => $INTEGER_LENGTH * 7;
-Readonly my $MAGIC_NUMBER      => 0x95_04_12_de;
-Readonly my $CONTEXT_SEPARATOR => chr 4; # EOT
-Readonly my $PLURAL_SEPARATOR  => chr 0; # NUL
+const my $INTEGER_LENGTH    => length pack 'N', 0;
+const my $REVISION_OFFSET   => $INTEGER_LENGTH;
+const my $MAPS_OFFSET       => $INTEGER_LENGTH * 7;
+const my $MAGIC_NUMBER      => 0x95_04_12_de;
+const my $CONTEXT_SEPARATOR => chr 4; # EOT
+const my $PLURAL_SEPARATOR  => chr 0; # NUL
 
 has filename => (
     is      => 'rw',
     isa     => 'Str',
+    reader  => 'get_filename',
+    writer  => 'set_filename',
     clearer => 'clear_filename',
 );
 has file_handle => (
     is      => 'rw',
     isa     => 'FileHandle',
+    reader  => 'get_file_handle',
+    writer  => 'set_file_handle',
     clearer => 'clear_file_handle',
 );
 has encoding => (
     is      => 'rw',
     isa     => 'Str',
+    reader  => 'get_encoding',
+    writer  => 'set_encoding',
     clearer => 'clear_encoding',
 );
 has newline => (
     is      => 'rw',
     isa     => 'Str',
+    reader  => 'get_newline',
+    writer  => 'set_newline',
     clearer => 'clear_newline',
 );
 has is_big_endian => (
@@ -51,16 +58,18 @@ has messages => (
     isa     => 'ArrayRef',
     default => sub { return [] },
     lazy    => 1,
+    reader  => 'get_messages',
+    writer  => 'set_messages',
 );
 
 sub _encode_and_replace_newline {
     my ($self, $string) = @_;
 
-    if ( $self->get_encoding() ) {
-        $string = encode($self->get_encoding(), $string);
+    if ( $self->get_encoding ) {
+        $string = encode($self->get_encoding, $string);
     }
-    if ( $self->get_newline() ) {
-        $string =~ s{\x0D? \x0A}{ $self->get_newline() }xmsge;
+    if ( $self->get_newline ) {
+        $string =~ s{\x0D? \x0A}{ $self->get_newline }xmsge;
     }
 
     return $string;
@@ -69,11 +78,11 @@ sub _encode_and_replace_newline {
 sub _decode_and_replace_newline {
     my ($self, $string) = @_;
 
-    if ( $self->get_encoding() ) {
-        $string = decode($self->get_encoding(), $string);
+    if ( $self->get_encoding ) {
+        $string = decode($self->get_encoding, $string);
     }
-    if ( $self->get_newline() ) {
-        $string =~ s{\x0D? \x0A}{ $self->get_newline() }xmsge;
+    if ( $self->get_newline ) {
+        $string =~ s{\x0D? \x0A}{ $self->get_newline }xmsge;
     }
 
     return $string;
@@ -170,7 +179,17 @@ before 'write_file' => sub {
     my $self = shift;
 
     my $index = 0;
-    for my $message ( @{ $self->get_messages() } ) {
+    my $chars_callback = sub {
+        my $string = shift;
+        STRING: for ( ref $string ? @{$string} : $string ) {
+            defined $_
+                or next STRING;
+            m{ \Q$CONTEXT_SEPARATOR\E | \Q$PLURAL_SEPARATOR\E }xmso
+                and return;
+        }
+        return 1;
+    };
+    for my $message ( @{ $self->get_messages } ) {
         validate_with(
             params => (
                 ref $message eq 'HASH'
@@ -178,10 +197,34 @@ before 'write_file' => sub {
                 : confess "messages[$index] is not a hash reference"
             ),
             spec => {
-                msgctxt       => {type => SCALAR, optional => 1},
-                msgid         => {type => SCALAR, optional => 1},
-                msgid_plural  => {type => SCALAR, optional => 1},
-                msgstr        => {type => SCALAR, optional => 1},
+                msgctxt => {
+                    type      => SCALAR,
+                    optional  => 1,
+                    callbacks => {
+                        'no control chars' => $chars_callback,
+                    },
+                },
+                msgid => {
+                    type      => SCALAR,
+                    optional  => 1,
+                    callbacks => {
+                        'no control chars' => $chars_callback,
+                    },
+                },
+                msgid_plural => {
+                    type      => SCALAR,
+                    optional  => 1,
+                    callbacks => {
+                        'no control chars' => $chars_callback,
+                    },
+                },
+                msgstr => {
+                    type      => SCALAR,
+                    optional  => 1,
+                    callbacks => {
+                        'no control chars' => $chars_callback,
+                    },
+                },
                 msgstr_plural => {
                     type      => ARRAYREF,
                     optional  => 1,
@@ -192,6 +235,7 @@ before 'write_file' => sub {
                                 && exists $message->{msgstr}
                             );
                         },
+                        'no control chars' => $chars_callback,
                     },
                 },
             },
@@ -212,13 +256,13 @@ sub write_file {
         }
         map {
             $self->_pack_message($_);
-        } @{ $self->get_messages() }
+        } @{ $self->get_messages }
     ];
 
     my $number_of_strings = @{$messages};
 
     # Set the byte order of the MO file creator
-    my $template = $self->is_big_endian() ? q{N} : q{V};
+    my $template = $self->is_big_endian ? q{N} : q{V};
 
     my $maps    = q{};
     my $strings = q{};
@@ -232,7 +276,7 @@ sub write_file {
             my $length = length $string;
             my $map = pack $template x 2, $length, $current_offset;
             $maps    .= $map;
-            $string  .= "\0";
+            $string  .= $PLURAL_SEPARATOR;
             $strings .= $string;
             $current_offset += length $string;
         }
@@ -257,17 +301,17 @@ sub write_file {
         . $maps
         . $strings;
 
-    my $filename = $self->get_filename();
+    my $filename = $self->get_filename;
     defined $filename
         or confess 'Filename not set';
     my $file_handle
-        = $self->get_file_handle()
+        = $self->get_file_handle
         || IO::File->new($filename, '> :raw')
         || confess "Can not open mo file $filename";
     $file_handle->print($content)
         or confess "Can not write mo file $filename";
-    if ( ! $self->get_file_handle() ) {
-        $file_handle->close()
+    if ( ! $self->get_file_handle ) {
+        $file_handle->close
             or confess "Can not close mo file $filename";
     }
 
@@ -277,19 +321,19 @@ sub write_file {
 sub read_file {
     my $self = shift;
 
-    my $filename = $self->get_filename();
+    my $filename = $self->get_filename;
     defined $filename
         or confess 'filename not set';
     my $file_handle
-        = $self->get_file_handle()
+        = $self->get_file_handle
         || IO::File->new($filename, '< :raw')
         || confess "Can not open mo file $filename";
     my $content = do {
         local $INPUT_RECORD_SEPARATOR = ();
         <$file_handle>;
     };
-    if ( ! $self->get_file_handle() ) {
-        $file_handle->close();
+    if ( ! $self->get_file_handle ) {
+        $file_handle->close;
     }
 
     # Find the byte order of the MO file creator
@@ -336,8 +380,7 @@ sub read_file {
     return $self;
 }
 
-no Moose;
-__PACKAGE__->meta()->make_immutable();
+__PACKAGE__->meta->make_immutable;
 
 1;
 
@@ -347,13 +390,13 @@ __END__
 
 Locale::MO::File - Write/read gettext MO files
 
-$Id: File.pm 592 2011-04-27 10:52:36Z steffenw $
+$Id: File.pm 600 2011-06-13 06:05:40Z steffenw $
 
 $HeadURL: https://dbd-po.svn.sourceforge.net/svnroot/dbd-po/Locale-MO-File/trunk/lib/Locale/MO/File.pm $
 
 =head1 VERSION
 
-0.01
+0.02
 
 =head1 SYNOPSIS
 
@@ -371,10 +414,10 @@ $HeadURL: https://dbd-po.svn.sourceforge.net/svnroot/dbd-po/Locale-MO-File/trunk
             ...
         ],
     });
-    $mo->write_file();
+    $mo->write_file;
 
-    $mo->read_file():
-    my $messages = $self->get_messages();
+    $mo->read_file;
+    my $messages = $self->get_messages;
 
 =head1 DESCRIPTION
 
@@ -402,38 +445,38 @@ All parameters are optional.
         newline       => $string,      # e.g. $CRLF or "\n", if not set: no change
         is_big_endian => $boolean,     # if not set: little endian
         messages      => $arrayref,    # default []
-    );    
+    );
 
 =head2 methods to modify an existing object
 
 =head3 set_filename, get_filename, clear_filename
 
-Modification of parameter filename.
+Modification of attribute filename.
 
     $mo->set_filename($string);
-    $string = $mo->get_filename();
-    $mo->clear_filename();
+    $string = $mo->get_filename;
+    $mo->clear_filename;
 
 =head3 set_file_handle, get_file_handle, clear_file_handle
 
-Modification of parameter file_handle.
+Modification of attribute file_handle.
 
 =head3 set_encoding, get_encoding, clear_encoding
 
-Modification of parameter encoding.
+Modification of attribute encoding.
 
 =head3 set_newline, get_newline, clear_newline
 
-Modification of parameter newline.
+Modification of attribute newline.
 
 =head3 set_is_big_endian, is_big_endian, clear_is_big_endian
 
-Modification of parameter is_big_endian.
+Modification of attribute is_big_endian.
 Only needed to write files.
 
-=head3 method set_messages, get_messages
+=head2 method set_messages, get_messages
 
-Modification of parameter messages.
+Modification of attribute messages.
 
     $mo->set_messages([
         # header
@@ -467,22 +510,21 @@ Modification of parameter messages.
         },
     ]);
 
-=head2 write_file
+=head2 method write_file
 
 The content of the "messages" array reference is first sorted and then written.
-So the header is always on top. 
+So the header is always on top.
 The transferred "messages" array reference remains unchanged.
 
-    $mo->write_file();
+    $mo->write_file;
 
 =head2 method read_file
 
 Big endian or little endian will be detected automaticly.
 The read data will be stored in attribute messages.
 
-    $mo = read_file();
-    my $messages = $mo->get_messages();
-
+    $mo = read_file;
+    my $messages = $mo->get_messages;
 
 =head1 EXAMPLE
 
@@ -499,23 +541,21 @@ none
 
 =head1 DEPENDENCIES
 
-Moose
+L<Moose|Moose>
 
 L<MooseX::StrictConstructor|MooseX::StrictConstructor>
 
-L<MooseX::FollowPBP|MooseX::FollowPBP>
+L<Const::Fast|Const::Fast>
 
-Carp
+L<English|English>
 
-English
-
-Encode
+L<Encode|Encode>
 
 L<IO::File|IO::File>
 
-L<Params::Validate|Params::Validate>
+L<namespace::autoclean|namespace::autoclean>
 
-Readonly
+L<Params::Validate|Params::Validate>
 
 =head1 INCOMPATIBILITIES
 
@@ -536,7 +576,7 @@ Steffen Winkler
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2011,
+Copyright (c) 2011 - 2012,
 Steffen Winkler
 C<< <steffenw at cpan.org> >>.
 All rights reserved.
@@ -544,5 +584,3 @@ All rights reserved.
 This module is free software;
 you can redistribute it and/or modify it
 under the same terms as Perl itself.
-
-=cut

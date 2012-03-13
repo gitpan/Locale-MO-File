@@ -7,7 +7,7 @@ use Carp qw(confess);
 use English qw(-no_match_vars $OS_ERROR);
 require IO::File;
 
-use Test::More tests => 5 + 1;
+use Test::More tests => 7 + 1;
 use Test::NoWarnings;
 use Test::Exception;
 use Test::Differences;
@@ -64,4 +64,35 @@ throws_ok(
     },
     qr{\Q'msgstr not set' callback}xms,
     'msgstr and msgstr together makes no sense',
+);
+
+throws_ok(
+    sub {
+        my $mo = Locale::MO::File->new();
+        $mo->set_filename($filename);
+        $mo->set_messages([
+            {
+                msgid => chr 0,
+            }
+        ]);
+        $mo->write_file();
+    },
+    qr{\Q'no control chars' callback}xms,
+    'control chars in msgid',
+);
+
+throws_ok(
+    sub {
+        my $mo = Locale::MO::File->new();
+        $mo->set_filename($filename);
+        $mo->set_messages([
+            {
+                msgid_plural  => undef,
+                msgstr_plural => [ chr 4 ],
+            }
+        ]);
+        $mo->write_file();
+    },
+    qr{\Q'no control chars' callback}xms,
+    'control chars in msgstr_plural',
 );

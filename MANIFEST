@@ -10,6 +10,7 @@ example/23_big_endian_utf-8.pl
 example/24_big_endian_fh_utf-8.pl
 lib/Locale/MO/File.pm
 MANIFEST			This list of files
+META.json
 README
 t/01_use.t
 t/02_exceptions.t
