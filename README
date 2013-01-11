@@ -1,4 +1,4 @@
-Locale::MO::File version 0.02
+Locale::MO::File version 0.03
 =============================
 
 Write or read gettext MO files.
@@ -11,13 +11,6 @@ To install this module, run the following commands:
     make
     make test
     make install
-
-Alternatively, to install with Module::Build, you can use the following commands:
-
-    perl Build.PL
-    ./Build
-    ./Build test
-    ./Build install
 
 DEPENDENCIES
 

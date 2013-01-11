@@ -7,8 +7,8 @@ use Cwd qw(getcwd);
 use File::Find;
 use Test::More;
 
-$ENV{TEST_AUTHOR}
-    or plan( skip_all => 'Author test. Set $ENV{TEST_AUTHOR} to a true value to run.' );
+$ENV{AUTHOR_TESTING}
+    or plan( skip_all => 'Author test. Set $ENV{AUTHOR_TESTING} to a true value to run.' );
 
 my $UNTAINT_FILENAME_PATTERN = qr{\A (
     (?:
@@ -49,7 +49,7 @@ find(
     $PATH,
 );
 
-plan( tests => 5 * scalar @list );
+plan( tests => 6 * scalar @list );
 
 my @ignore_non_ascii = (
 );
@@ -62,7 +62,10 @@ for my $file_name (sort @list) {
         local $/ = ();
         my $text = <$file>;
         # repair last line without \n
-        $text =~ s{([^\x0D\x0A]) \z}{$1\x0D\x0A}xms;
+        ok(
+            ! ( $text =~ s{([^\x0D\x0A]) \z}{$1\x0D\x0A}xms ),
+            "$file_name has newline at EOF",
+        );
         @lines = split m{\x0A}, $text;
     }
 
@@ -88,7 +91,7 @@ for my $file_name (sort @list) {
     };
 
     $find_line_numbers->(
-        "$file_name has Network line endings (LFCR)",
+        "$file_name has network line endings (LFCR)",
         'line endings',
         qr{\x0D \z}xms,
         1,

@@ -14,7 +14,7 @@ WriteMakefile
                    'Moose' => 0,
                    'MooseX::StrictConstructor' => 0,
                    'Params::Validate' => 0,
-                   'Test::Differences' => 0,
+                   'Test::Differences' => '0.60',
                    'Test::Exception' => 0,
                    'Test::HexDifferences' => 0,
                    'Test::More' => 0,

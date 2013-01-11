@@ -1,4 +1,3 @@
-Build.PL
 Changes
 example/11_little_endian.pl
 example/12_little_endian_fh.pl
@@ -10,7 +9,6 @@ example/23_big_endian_utf-8.pl
 example/24_big_endian_fh_utf-8.pl
 lib/Locale/MO/File.pm
 MANIFEST			This list of files
-META.json
 README
 t/01_use.t
 t/02_exceptions.t
@@ -28,3 +26,4 @@ t/pod_coverage.t
 t/prereq_build.t
 Makefile.PL
 META.yml
+META.json

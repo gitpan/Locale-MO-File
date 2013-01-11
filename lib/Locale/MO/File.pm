@@ -9,7 +9,7 @@ require IO::File;
 use namespace::autoclean;
 use Params::Validate qw(validate_with SCALAR ARRAYREF);
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 const my $INTEGER_LENGTH    => length pack 'N', 0;
 const my $REVISION_OFFSET   => $INTEGER_LENGTH;
@@ -390,13 +390,13 @@ __END__
 
 Locale::MO::File - Write/read gettext MO files
 
-$Id: File.pm 600 2011-06-13 06:05:40Z steffenw $
+$Id: File.pm 615 2012-03-13 13:28:39Z steffenw $
 
 $HeadURL: https://dbd-po.svn.sourceforge.net/svnroot/dbd-po/Locale-MO-File/trunk/lib/Locale/MO/File.pm $
 
 =head1 VERSION
 
-0.02
+0.03
 
 =head1 SYNOPSIS
 

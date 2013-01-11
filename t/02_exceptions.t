@@ -87,7 +87,7 @@ throws_ok(
         $mo->set_filename($filename);
         $mo->set_messages([
             {
-                msgid_plural  => undef,
+                msgid_plural  => 'dummy',
                 msgstr_plural => [ chr 4 ],
             }
         ]);
