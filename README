@@ -1,4 +1,4 @@
-Locale::MO::File version 0.04
+Locale::MO::File version 0.05
 =============================
 
 Write or read gettext MO files.

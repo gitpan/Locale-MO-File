@@ -21,7 +21,7 @@ name: Locale-MO-File
 provides:
   Locale::MO::File:
     file: lib/Locale/MO/File.pm
-    version: 0.04
+    version: 0.05
 recommends:
   Test::Pod: 1.14
   Test::Pod::Coverage: 1.04
@@ -36,7 +36,7 @@ requires:
   Params::Validate: 0
   charnames: 0
   namespace::autoclean: 0
-  perl: v5.6.1
+  perl: 5.006001
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.04
+version: 0.05

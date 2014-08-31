@@ -14,14 +14,14 @@ use MooX::StrictConstructor;
 use MooX::Types::MooseLike::Base qw(Bool Str ArrayRef FileHandle);
 use Params::Validate qw(validate_with SCALAR ARRAYREF);
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
-const my $INTEGER_LENGTH    => length pack 'N', 0;
-const my $REVISION_OFFSET   => $INTEGER_LENGTH;
-const my $MAPS_OFFSET       => $INTEGER_LENGTH * 7;
-const my $MAGIC_NUMBER      => 0x95_04_12_DE;
-const my $CONTEXT_SEPARATOR => "\N{END OF TRANSMISSION}";
-const my $PLURAL_SEPARATOR  => "\N{NULL}";
+const my $INTEGER_LENGTH     => length pack 'N', 0;
+const my $REVISION_OFFSET    => $INTEGER_LENGTH;
+const my $MAPS_OFFSET        => $INTEGER_LENGTH * 7;
+const my $MAGIC_NUMBER       => 0x95_04_12_DE;
+const our $CONTEXT_SEPARATOR => "\N{END OF TRANSMISSION}";
+const our $PLURAL_SEPARATOR  => "\N{NULL}";
 
 has filename => (
     is      => 'rw',
@@ -76,7 +76,7 @@ sub _encode_and_replace_newline {
         $string = $encoder->encode($string);
     }
     if ( $self->get_newline ) {
-        $string =~ s{ \N{CARRIAGE RETURN}? \N{LINE FEED} }{ $self->get_newline }xmsge;
+        $string =~ s{ \r? \n }{ $self->get_newline }xmsge;
     }
 
     return $string;
@@ -88,10 +88,10 @@ sub _decode_and_replace_newline {
     if ( $self->get_encoding ) {
         my $encoder = find_encoding( $self->get_encoding )
             or confess 'Can not find encoding for ', $self->get_encoding;
-        $string = $encoder->decode($string, 1);
+        $string = $encoder->decode($string, Encode::FB_CROAK);
     }
     if ( $self->get_newline ) {
-        $string =~ s{ \N{CARRIAGE RETURN}? \N{LINE FEED} }{ $self->get_newline }xmsge;
+        $string =~ s{ \r? \n }{ $self->get_newline }xmsge;
     }
 
     return $string;
@@ -399,13 +399,13 @@ __END__
 
 Locale::MO::File - Write/read gettext MO files
 
-$Id: File.pm 619 2013-01-11 19:21:31Z steffenw $
+$Id: File.pm 629 2014-08-31 09:18:25Z steffenw $
 
-$HeadURL: https://dbd-po.svn.sourceforge.net/svnroot/dbd-po/Locale-MO-File/trunk/lib/Locale/MO/File.pm $
+$HeadURL: svn+ssh://steffenw@svn.code.sf.net/p/dbd-po/code/Locale-MO-File/trunk/lib/Locale/MO/File.pm $
 
 =head1 VERSION
 
-0.04
+0.05
 
 =head1 SYNOPSIS
 

@@ -45,14 +45,14 @@
             "Params::Validate" : "0",
             "charnames" : "0",
             "namespace::autoclean" : "0",
-            "perl" : "v5.6.1"
+            "perl" : "5.006001"
          }
       }
    },
    "provides" : {
       "Locale::MO::File" : {
          "file" : "lib/Locale/MO/File.pm",
-         "version" : "0.04"
+         "version" : "0.05"
       }
    },
    "release_status" : "stable",
@@ -61,5 +61,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.04"
+   "version" : "0.05"
 }

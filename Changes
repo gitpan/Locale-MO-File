@@ -1,5 +1,10 @@
 Revision history for Perl extension Locale::MO::File.
 
+0.05 Sun Aug 31 20:31:07 2014
+- fixed regex
+- stronger decode
+- renewed tests
+
 0.04  Sun Aug 31 11:08:42 2014
 - moved from Moose to Moo
 

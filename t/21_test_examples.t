@@ -7,11 +7,10 @@ use Test::More;
 use Test::Differences;
 use Cwd qw(getcwd chdir);
 
-$ENV{TEST_EXAMPLE} or plan(
-    skip_all => 'Set $ENV{TEST_EXAMPLE} to run this test.'
-);
+$ENV{AUTHOR_TESTING} or plan
+    skip_all => 'Set $ENV{AUTHOR_TESTING} to run this test.';
 
-plan(tests => 8);
+plan tests => 8;
 
 my @data = (
     {
@@ -353,13 +352,12 @@ EOT
 );
 
 for my $data (@data) {
-    my $dir = getcwd();
-    chdir("$dir/$data->{path}");
+    my $dir = getcwd;
+    chdir "$dir/$data->{path}";
     my $result = qx{perl $data->{script} 2>&3};
-    chdir($dir);
-    eq_or_diff(
+    chdir $dir;
+    eq_or_diff
         $result,
         $data->{result},
-        $data->{test},
-    );
+        $data->{test};
 }
