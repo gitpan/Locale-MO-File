@@ -1,61 +1,66 @@
 package Locale::MO::File; ## no critic (TidyCode)
 
-use Moose;
-use MooseX::StrictConstructor;
+use strict;
+use warnings;
+use charnames qw(:full);
+use namespace::autoclean;
+use Carp qw(confess);
 use Const::Fast qw(const);
-use Encode qw(encode decode);
+use Encode qw(find_encoding);
 use English qw(-no_match_vars $INPUT_RECORD_SEPARATOR);
 require IO::File;
-use namespace::autoclean;
+use Moo;
+use MooX::StrictConstructor;
+use MooX::Types::MooseLike::Base qw(Bool Str ArrayRef FileHandle);
 use Params::Validate qw(validate_with SCALAR ARRAYREF);
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 const my $INTEGER_LENGTH    => length pack 'N', 0;
 const my $REVISION_OFFSET   => $INTEGER_LENGTH;
 const my $MAPS_OFFSET       => $INTEGER_LENGTH * 7;
-const my $MAGIC_NUMBER      => 0x95_04_12_de;
-const my $CONTEXT_SEPARATOR => chr 4; # EOT
-const my $PLURAL_SEPARATOR  => chr 0; # NUL
+const my $MAGIC_NUMBER      => 0x95_04_12_DE;
+const my $CONTEXT_SEPARATOR => "\N{END OF TRANSMISSION}";
+const my $PLURAL_SEPARATOR  => "\N{NULL}";
 
 has filename => (
     is      => 'rw',
-    isa     => 'Str',
+    isa     => Str,
     reader  => 'get_filename',
     writer  => 'set_filename',
     clearer => 'clear_filename',
 );
 has file_handle => (
     is      => 'rw',
-    isa     => 'FileHandle',
+    isa     => FileHandle,
     reader  => 'get_file_handle',
     writer  => 'set_file_handle',
     clearer => 'clear_file_handle',
 );
 has encoding => (
     is      => 'rw',
-    isa     => 'Str',
+    isa     => Str,
     reader  => 'get_encoding',
     writer  => 'set_encoding',
     clearer => 'clear_encoding',
 );
 has newline => (
     is      => 'rw',
-    isa     => 'Str',
+    isa     => Str,
     reader  => 'get_newline',
     writer  => 'set_newline',
     clearer => 'clear_newline',
 );
 has is_big_endian => (
     is      => 'rw',
-    isa     => 'Bool',
+    isa     => Bool,
     reader  => 'is_big_endian',
     writer  => 'set_is_big_endian',
     clearer => 'clear_is_big_endian',
 );
 has messages => (
     is      => 'rw',
-    isa     => 'ArrayRef',
+    isa     => ArrayRef,
     default => sub { return [] },
     lazy    => 1,
     reader  => 'get_messages',
@@ -66,10 +71,12 @@ sub _encode_and_replace_newline {
     my ($self, $string) = @_;
 
     if ( $self->get_encoding ) {
-        $string = encode($self->get_encoding, $string);
+        my $encoder = find_encoding( $self->get_encoding )
+            or confess 'Can not find encoding for ', $self->get_encoding;
+        $string = $encoder->encode($string);
     }
     if ( $self->get_newline ) {
-        $string =~ s{\x0D? \x0A}{ $self->get_newline }xmsge;
+        $string =~ s{ \N{CARRIAGE RETURN}? \N{LINE FEED} }{ $self->get_newline }xmsge;
     }
 
     return $string;
@@ -79,10 +86,12 @@ sub _decode_and_replace_newline {
     my ($self, $string) = @_;
 
     if ( $self->get_encoding ) {
-        $string = decode($self->get_encoding, $string);
+        my $encoder = find_encoding( $self->get_encoding )
+            or confess 'Can not find encoding for ', $self->get_encoding;
+        $string = $encoder->decode($string, 1);
     }
     if ( $self->get_newline ) {
-        $string =~ s{\x0D? \x0A}{ $self->get_newline }xmsge;
+        $string =~ s{ \N{CARRIAGE RETURN}? \N{LINE FEED} }{ $self->get_newline }xmsge;
     }
 
     return $string;
@@ -390,13 +399,13 @@ __END__
 
 Locale::MO::File - Write/read gettext MO files
 
-$Id: File.pm 615 2012-03-13 13:28:39Z steffenw $
+$Id: File.pm 619 2013-01-11 19:21:31Z steffenw $
 
 $HeadURL: https://dbd-po.svn.sourceforge.net/svnroot/dbd-po/Locale-MO-File/trunk/lib/Locale/MO/File.pm $
 
 =head1 VERSION
 
-0.03
+0.04
 
 =head1 SYNOPSIS
 
@@ -541,19 +550,25 @@ none
 
 =head1 DEPENDENCIES
 
-L<Moose|Moose>
+L<charnames|charnames>
 
-L<MooseX::StrictConstructor|MooseX::StrictConstructor>
+L<namespace::autoclean|namespace::autoclean>
+
+L<Carp|Carp>
 
 L<Const::Fast|Const::Fast>
 
-L<English|English>
-
 L<Encode|Encode>
+
+L<English|English>
 
 L<IO::File|IO::File>
 
-L<namespace::autoclean|namespace::autoclean>
+L<Moo|Moo>
+
+L<MooX::StrictConstructor|MooX::StrictConstructor>
+
+L<MooX::Types::MooseLike::Base|MooX::Types::MooseLike::Base>
 
 L<Params::Validate|Params::Validate>
 
@@ -576,7 +591,7 @@ Steffen Winkler
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2011 - 2012,
+Copyright (c) 2011 - 2014,
 Steffen Winkler
 C<< <steffenw at cpan.org> >>.
 All rights reserved.

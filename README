@@ -1,4 +1,4 @@
-Locale::MO::File version 0.03
+Locale::MO::File version 0.04
 =============================
 
 Write or read gettext MO files.
@@ -16,18 +16,21 @@ DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-    Moose
-    MooseX::StrictConstructor
+    charnames
+    namespace::autoclean
+    Carp
     Const::Fast
     Encode
     English
     IO::File
-    namespace::autoclean
+    Moo
+    MooX::StrictConstructor
+    MooX::Types::MooseLike::Base
     Params::Validate
 
 COPYRIGHT AND LICENCE
 
-Copyright (c) 2011 - 2012,
+Copyright (c) 2011 - 2014,
 Steffen Winkler
 steffenw at cpan.org.
 All rights reserved.

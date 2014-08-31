@@ -4,7 +4,7 @@
       "Steffen Winkler <steffenw at cpan.org>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "Module::Build version 0.38, CPAN::Meta::Converter version 2.112621",
+   "generated_by" : "Module::Build version 0.38, CPAN::Meta::Converter version 2.132140",
    "license" : [
       "perl_5"
    ],
@@ -16,12 +16,12 @@
    "prereqs" : {
       "build" : {
          "requires" : {
-            "Hash::Util" : 0,
+            "Hash::Util" : "0",
             "Test::Differences" : "0.60",
-            "Test::Exception" : 0,
-            "Test::HexDifferences" : 0,
-            "Test::More" : 0,
-            "Test::NoWarnings" : 0
+            "Test::Exception" : "0",
+            "Test::HexDifferences" : "0",
+            "Test::More" : "0",
+            "Test::NoWarnings" : "0"
          }
       },
       "configure" : {
@@ -35,22 +35,24 @@
             "Test::Pod::Coverage" : "1.04"
          },
          "requires" : {
-            "Const::Fast" : 0,
-            "Encode" : 0,
-            "English" : 0,
-            "IO::File" : 0,
-            "Moose" : 0,
-            "MooseX::StrictConstructor" : 0,
-            "Params::Validate" : 0,
-            "namespace::autoclean" : 0,
-            "perl" : "5.006"
+            "Const::Fast" : "0",
+            "Encode" : "0",
+            "English" : "0",
+            "IO::File" : "0",
+            "Moo" : "1.003001",
+            "MooX::StrictConstructor" : "0",
+            "MooX::Types::MooseLike" : "0",
+            "Params::Validate" : "0",
+            "charnames" : "0",
+            "namespace::autoclean" : "0",
+            "perl" : "v5.6.1"
          }
       }
    },
    "provides" : {
       "Locale::MO::File" : {
          "file" : "lib/Locale/MO/File.pm",
-         "version" : "0.03"
+         "version" : "0.04"
       }
    },
    "release_status" : "stable",
@@ -59,5 +61,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "0.03"
+   "version" : "0.04"
 }
